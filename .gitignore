@@ -216,3 +216,30 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# =============================================================================
+# AET-SE Project-Specific
+# =============================================================================
+
+# Raw data downloads (large, user must download)
+data/raw/
+
+# Processed / intermediate data
+data/processed/
+
+# DuckDB database files
+data/duckdb/
+
+# ChromaDB persistent vector store
+data/chroma_db/
+
+# LLM and embedding caches
+data/cache/
+
+# Evaluation output
+data/eval_results/
+
+# Logs
+logs/
+
+# NOTE: data/ground_truth/ is NOT ignored — it's small, curated, and version-controlled

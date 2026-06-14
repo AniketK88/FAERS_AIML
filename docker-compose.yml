@@ -1,0 +1,23 @@
+# =============================================================================
+# AET-SE: Docker Compose (Optional)
+# Use for containerized ChromaDB if you prefer isolated vector store.
+# Default setup uses embedded ChromaDB (no Docker needed).
+# =============================================================================
+
+services:
+  # Optional: ChromaDB server mode (use if you want network-accessible vector store)
+  chromadb:
+    image: chromadb/chroma:0.6.3
+    container_name: aetse-chromadb
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data/chroma_db:/chroma/chroma
+    environment:
+      - IS_PERSISTENT=TRUE
+      - ANONYMIZED_TELEMETRY=FALSE
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G    # Keep memory bounded on 7.5GB RAM system
