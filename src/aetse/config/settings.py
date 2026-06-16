@@ -63,7 +63,7 @@ class DataSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="")
 
     faers_raw_dir: Path = PROJECT_ROOT / "data" / "raw" / "faers"
-    faers_quarters: list[str] = ["2024Q3", "2024Q4"]
+    faers_quarters: list[str] = ["2024Q4", "2025Q1"]
     reviews_raw_dir: Path = PROJECT_ROOT / "data" / "raw" / "reviews"
     rxnorm_data_dir: Path = PROJECT_ROOT / "data" / "raw" / "rxnorm"
     ground_truth_dir: Path = PROJECT_ROOT / "data" / "ground_truth"

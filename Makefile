@@ -55,6 +55,15 @@ pull-models:  ## Pull required Ollama models
 
 ingest-faers:  ## Ingest and normalize FAERS quarterly data into DuckDB
 	$(PYTHON) -m aetse.data.ingest_faers
+	@echo ""
+	@echo "📊 Verification — Table Counts:"
+	@$(PYTHON) -c "\
+	from aetse.utils.db import get_table_counts, run_validation_query; \
+	counts = get_table_counts(); \
+	[print(f'  {k}: {v:,}') for k, v in counts.items()]; \
+	print(); v = run_validation_query(); \
+	[print(f'  {k}: {v:,}') for k, v in v.items()]; \
+	import sys; sys.exit(1) if counts.get('faers_cases', 0) < 1000 else None"
 
 ingest-reviews:  ## Ingest and filter Kaggle drug reviews
 	$(PYTHON) -m aetse.data.ingest_reviews
