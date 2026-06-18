@@ -4,7 +4,7 @@
 # =============================================================================
 
 .PHONY: setup ingest-faers ingest-reviews run-pipeline run-app run-eval test \
-        lint clean pull-models check-prereqs help
+        lint clean pull-models check-prereqs help normalize-drugs
 
 PYTHON := .venv/bin/python
 PIP := .venv/bin/pip
@@ -71,7 +71,10 @@ ingest-reviews:  ## Ingest and filter Kaggle drug reviews
 ingest-rxnorm:  ## Load RxNorm RxTerms for drug name normalization
 	$(PYTHON) -m aetse.data.ingest_rxnorm
 
-ingest-all: ingest-faers ingest-rxnorm ingest-reviews  ## Run all ingestion steps in order
+normalize-drugs:  ## Derive seriousness + normalize drug names via RxNorm
+	$(PYTHON) -m aetse.data.normalize_drugs
+
+ingest-all: ingest-faers ingest-rxnorm normalize-drugs ingest-reviews  ## Run all ingestion steps in order
 
 # ---- Pipeline ----
 

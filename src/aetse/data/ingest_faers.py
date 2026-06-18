@@ -280,15 +280,19 @@ def load_demo_tables(quarters: dict[str, dict[str, Path]]) -> pl.DataFrame:
         logger.warning("Missing 'age' or 'age_cod' column — age_years will be NULL")
         demo = demo.with_columns(pl.lit(None).cast(pl.Float64).alias("age_years"))
 
-    # --- Parse receivedate (YYYYMMDD string → Date) ---
-    if "event_dt" in demo.columns:
-        # Some FAERS files use event_dt instead of receivedate
+    # --- Parse report date (YYYYMMDD string → Date) ---
+    # Priority: fda_dt (FDA receive date = spec's "receivedate") > rept_dt > event_dt
+    if "fda_dt" in demo.columns:
+        date_col = "fda_dt"
+    elif "rept_dt" in demo.columns:
+        date_col = "rept_dt"
+    elif "event_dt" in demo.columns:
         date_col = "event_dt"
     elif "receivedate" in demo.columns:
         date_col = "receivedate"
     else:
         date_col = None
-        logger.warning("No date column found (receivedate/event_dt)")
+        logger.warning("No date column found (fda_dt/rept_dt/event_dt/receivedate)")
 
     if date_col:
         demo = demo.with_columns(
@@ -340,8 +344,8 @@ def load_demo_tables(quarters: dict[str, dict[str, Path]]) -> pl.DataFrame:
 
     logger.info(
         f"DEMO processed: {result.height:,} cases, "
-        f"age non-null: {result['age_years'].drop_nulls().height:,}, "
-        f"date non-null: {result['report_date'].drop_nulls().height:,}"
+        f"age non-null: {result['age_years'].drop_nulls().len():,}, "
+        f"date non-null: {result['report_date'].drop_nulls().len():,}"
     )
 
     return result
