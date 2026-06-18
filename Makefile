@@ -4,7 +4,7 @@
 # =============================================================================
 
 .PHONY: setup ingest-faers ingest-reviews run-pipeline run-app run-eval test \
-        lint clean pull-models check-prereqs help normalize-drugs
+        lint clean pull-models check-prereqs help normalize-drugs compute-signals
 
 PYTHON := .venv/bin/python
 PIP := .venv/bin/pip
@@ -75,6 +75,11 @@ normalize-drugs:  ## Derive seriousness + normalize drug names via RxNorm
 	$(PYTHON) -m aetse.data.normalize_drugs
 
 ingest-all: ingest-faers ingest-rxnorm normalize-drugs ingest-reviews  ## Run all ingestion steps in order
+
+# ---- Signal Detection ----
+
+compute-signals:  ## Compute PRR/ROR signals and validate positive controls
+	$(PYTHON) -m aetse.data.compute_signals
 
 # ---- Pipeline ----
 
