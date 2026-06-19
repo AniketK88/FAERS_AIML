@@ -36,18 +36,22 @@ class TestHappyPath:
         assert result["signal_flag"] == "noise"
 
     def test_happy_path_has_all_fields(self):
-        """All PVState fields should be populated after happy path."""
-        result = run_pipeline("test-002", "Test text")
+        """Real LLM wired — assert structure not hardcoded stub values"""
+        result = run_pipeline(
+            "test-001",
+            "Patient took ibuprofen and had stomach pain",
+        )
 
-        assert result["extracted_drugs"] == ["ibuprofen"]
-        assert result["extracted_reactions"] == ["headache"]
-        assert result["severity"] == "non-serious"
-        assert result["extraction_confidence"] == 0.80
-        assert result["meddra_pts"] == ["Headache"]
-        assert result["mapping_scores"] == [0.92]
-        assert result["prr_signals"] == []
-        assert result["signal_flag"] == "noise"
-        assert len(result["agent_trace"]) == 4  # extract, validate, map, signal
+        # Structure assertions — not value assertions
+        assert isinstance(result["extracted_drugs"], list)
+        assert isinstance(result["extracted_reactions"], list)
+        assert result["severity"] in ["serious", "non-serious", "unknown"]
+        assert isinstance(result["extraction_confidence"], float)
+        assert 0.0 <= result["extraction_confidence"] <= 1.0
+        assert isinstance(result["agent_trace"], list)
+        assert len(result["agent_trace"]) >= 3
+        assert result["needs_human_review"] == False
+        assert isinstance(result["processing_latency_ms"], dict)
         assert "extract" in result["processing_latency_ms"]
 
 

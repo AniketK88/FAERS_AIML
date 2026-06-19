@@ -24,6 +24,7 @@ import time
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
 
+from aetse.pipeline.agents.extraction import extract_node
 from aetse.schemas import PVState
 from aetse.utils.logging import logger
 
@@ -181,7 +182,7 @@ def build_graph():
     builder = StateGraph(PVState)
 
     # Add nodes
-    builder.add_node("extract", extract_stub)
+    builder.add_node("extract", extract_node)
     builder.add_node("validate", validate_stub)
     builder.add_node("map_terms", map_terms_stub)
     builder.add_node("signal_check", signal_check_stub)
