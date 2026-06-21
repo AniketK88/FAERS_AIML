@@ -4,17 +4,71 @@ Tests verify that:
 1. Happy path: high confidence → extract → validate → map_terms → signal_check
 2. Retry routing: low confidence → extract retries up to 2 times
 3. Human flag: after 2 retries with low confidence → flag_human
+
+All tests use stub extractors (monkeypatched) to avoid real LLM calls.
+The real extract_node is tested in integration tests with live Ollama.
 """
 
 from __future__ import annotations
 
-from unittest.mock import patch
+import time
 
 import pytest
 
 from aetse.pipeline.runner import run_pipeline
-from aetse.pipeline.graph import build_graph, extract_stub, route_by_confidence
+from aetse.pipeline.graph import (
+    build_graph,
+    extract_stub,
+    route_by_confidence,
+)
 from aetse.schemas import PVState
+
+
+# ---------------------------------------------------------------------------
+# Fixtures: monkeypatch extract_node → extract_stub for unit tests
+# ---------------------------------------------------------------------------
+
+@pytest.fixture(autouse=True)
+def _use_stub_extractor(monkeypatch):
+    """Replace extract_node with extract_stub in build_graph for all tests.
+
+    This ensures unit tests never call the real Ollama LLM.
+    The stub returns confidence=0.80 (above 0.75 threshold).
+    """
+    from aetse.pipeline import graph as graph_module
+    from aetse.pipeline.agents import extraction as extraction_module
+
+    monkeypatch.setattr(graph_module, "extract_node", extract_stub)
+
+
+def _make_low_confidence_stub():
+    """Create a stub that always returns low confidence (0.40)."""
+
+    def low_conf_extract_stub(state: PVState) -> dict:
+        start = time.time()
+        current_retries = state["extraction_retries"]
+        latency = (time.time() - start) * 1000
+
+        trace_entry = (
+            f"EXTRACTION_RETRY:{current_retries},stub=True,conf=0.40"
+            if current_retries > 0
+            else "EXTRACTION:stub=True,conf=0.40"
+        )
+
+        return {
+            "extracted_drugs": ["unknown"],
+            "extracted_reactions": ["unknown"],
+            "severity": "unknown",
+            "extraction_confidence": 0.40,
+            "extraction_retries": current_retries + 1,
+            "agent_trace": state["agent_trace"] + [trace_entry],
+            "processing_latency_ms": {
+                **state["processing_latency_ms"],
+                "extract": round(latency, 2),
+            },
+        }
+
+    return low_conf_extract_stub
 
 
 class TestHappyPath:
@@ -54,56 +108,18 @@ class TestHappyPath:
 class TestRetryRouting:
     """Test retry routing when confidence < 0.75."""
 
-    def _make_low_confidence_stub(self):
-        """Create a stub that always returns low confidence."""
-
-        def low_conf_extract_stub(state: PVState) -> dict:
-            import time
-
-            start = time.time()
-            current_retries = state["extraction_retries"]
-            latency = (time.time() - start) * 1000
-
-            trace_entry = (
-                f"EXTRACTION_RETRY:{current_retries},stub=True,conf=0.40"
-                if current_retries > 0
-                else "EXTRACTION:stub=True,conf=0.40"
-            )
-
-            return {
-                "extracted_drugs": ["unknown"],
-                "extracted_reactions": ["unknown"],
-                "severity": "unknown",
-                "extraction_confidence": 0.40,
-                "extraction_retries": current_retries + 1,
-                "agent_trace": state["agent_trace"] + [trace_entry],
-                "processing_latency_ms": {
-                    **state["processing_latency_ms"],
-                    "extract": round(latency, 2),
-                },
-            }
-
-        return low_conf_extract_stub
-
-    def test_retry_then_flag_human(self):
+    def test_retry_then_flag_human(self, monkeypatch):
         """confidence=0.40 → should retry extract, then flag_human after 2 retries."""
-        low_stub = self._make_low_confidence_stub()
+        low_stub = _make_low_confidence_stub()
 
-        with patch(
-            "aetse.pipeline.graph.extract_stub", low_stub
-        ):
-            # Need to rebuild graph with patched stub
-            from aetse.pipeline import graph as graph_module
+        from aetse.pipeline import graph as graph_module
 
-            original = graph_module.extract_stub
-            graph_module.extract_stub = low_stub
-            try:
-                result = run_pipeline(
-                    "test-retry-001",
-                    "Garbled text no useful info",
-                )
-            finally:
-                graph_module.extract_stub = original
+        monkeypatch.setattr(graph_module, "extract_node", low_stub)
+
+        result = run_pipeline(
+            "test-retry-001",
+            "Garbled text no useful info",
+        )
 
         trace = " ".join(result["agent_trace"])
         assert "EXTRACTION_RETRY:" in trace
@@ -111,21 +127,18 @@ class TestRetryRouting:
         assert "MAPPING:" not in trace
         assert result["needs_human_review"] is True
 
-    def test_retry_count_capped_at_two(self):
+    def test_retry_count_capped_at_two(self, monkeypatch):
         """Should not retry more than 2 times (3 total extract calls max)."""
-        low_stub = self._make_low_confidence_stub()
+        low_stub = _make_low_confidence_stub()
 
         from aetse.pipeline import graph as graph_module
 
-        original = graph_module.extract_stub
-        graph_module.extract_stub = low_stub
-        try:
-            result = run_pipeline(
-                "test-retry-002",
-                "More garbled text",
-            )
-        finally:
-            graph_module.extract_stub = original
+        monkeypatch.setattr(graph_module, "extract_node", low_stub)
+
+        result = run_pipeline(
+            "test-retry-002",
+            "More garbled text",
+        )
 
         # Count extraction calls in trace
         extraction_calls = [
@@ -141,21 +154,18 @@ class TestRetryRouting:
 class TestHumanFlagRouting:
     """Test direct human flag routing."""
 
-    def test_human_flag_sets_review_true(self):
+    def test_human_flag_sets_review_true(self, monkeypatch):
         """After retries exhausted → needs_human_review=True."""
-        low_stub = TestRetryRouting()._make_low_confidence_stub()
+        low_stub = _make_low_confidence_stub()
 
         from aetse.pipeline import graph as graph_module
 
-        original = graph_module.extract_stub
-        graph_module.extract_stub = low_stub
-        try:
-            result = run_pipeline(
-                "test-human-001",
-                "No useful text at all",
-            )
-        finally:
-            graph_module.extract_stub = original
+        monkeypatch.setattr(graph_module, "extract_node", low_stub)
+
+        result = run_pipeline(
+            "test-human-001",
+            "No useful text at all",
+        )
 
         assert result["needs_human_review"] is True
         assert "HUMAN_FLAG:reason=low_confidence" in result["agent_trace"]

@@ -1,8 +1,8 @@
 """LangGraph state machine definition and graph construction.
 
 This module defines:
-- The StateGraph with 5 stub nodes: extract, validate, map_terms,
-  signal_check, flag_human
+- The StateGraph with real extract_node (Day 6) and stub nodes for
+  validate, map_terms, signal_check, flag_human
 - Conditional edges for retry routing and human-review flagging
 - The compiled graph object for use by the pipeline runner
 
@@ -13,8 +13,11 @@ Graph topology:
                          ↓
                   [retries exhausted]──→ flag_human → END
 
-CRITICAL: All nodes are STUBS today (Day 4).
-Real agent logic will be added in Days 5-7.
+Day 4: All nodes were stubs.
+Day 6: extract_node replaces extract_stub (real Ollama LLM calls).
+       extract_stub preserved for unit test compatibility.
+Day 7: map_terms_node replaces map_terms_stub (ChromaDB + bge-small-en-v1.5).
+       Signal 3 (RxNorm) now active in extract_node — max conf rises to 1.0.
 """
 
 from __future__ import annotations
@@ -25,6 +28,8 @@ from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
 
 from aetse.schemas import PVState
+from aetse.pipeline.agents.extraction import extract_node
+from aetse.pipeline.agents.meddra_mapper import map_terms_node
 from aetse.utils.logging import logger
 
 
@@ -181,9 +186,9 @@ def build_graph():
     builder = StateGraph(PVState)
 
     # Add nodes
-    builder.add_node("extract", extract_stub)
+    builder.add_node("extract", extract_node)
     builder.add_node("validate", validate_stub)
-    builder.add_node("map_terms", map_terms_stub)
+    builder.add_node("map_terms", map_terms_node)
     builder.add_node("signal_check", signal_check_stub)
     builder.add_node("flag_human", flag_human_stub)
 

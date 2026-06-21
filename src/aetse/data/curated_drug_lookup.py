@@ -216,3 +216,45 @@ def batch_normalize_drugs(drug_names: list[str]) -> list[dict]:
     )
 
     return results
+
+
+# ---------------------------------------------------------------------------
+# CuratedDrugLookup class — wraps module-level functions for use as
+# rxnorm_matcher in compute_extraction_confidence (Signal 3).
+#
+# Interface contract:
+#   best_match(drug_name: str) -> float
+#     Returns a score in [0.0, 1.0]:
+#       1.0  — exact match to a known target drug keyword (case-insensitive)
+#       0.9  — substring match (keyword found within drug_name)
+#       0.0  — no match to any of the 11 target drugs
+# ---------------------------------------------------------------------------
+
+class CuratedDrugLookup:
+    """Thin class wrapper around normalize_drug_name for rxnorm_matcher interface.
+
+    Used by compute_extraction_confidence (Signal 3) to check whether
+    extracted drug names match known target drugs in the curated lookup.
+
+    Example:
+        matcher = CuratedDrugLookup()
+        score = matcher.best_match("ibuprofen")  # → 1.0
+        score = matcher.best_match("advil")      # → 1.0 (brand → ibuprofen)
+        score = matcher.best_match("penicillin") # → 0.0 (not a target drug)
+    """
+
+    def best_match(self, drug_name: str) -> float:
+        """Return match confidence for a drug name against the 11 target drugs.
+
+        Args:
+            drug_name: Drug name string from LLM extraction.
+
+        Returns:
+            Float in [0.0, 1.0]. Score is scaled from normalize_drug_name:
+            - exact keyword match (score=100) → returns 1.0
+            - substring match (score=90) → returns 0.9
+            - no match (score=0) → returns 0.0
+        """
+        _, _, raw_score = normalize_drug_name(drug_name)
+        # Normalize from [0, 100] to [0.0, 1.0]
+        return round(raw_score / 100.0, 3)
