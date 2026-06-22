@@ -67,10 +67,19 @@ with tab1:
             
             fig = px.imshow(
                 pivot,
-                color_continuous_scale="Reds",
+                color_continuous_scale=["#f8f9fa", "#fecaca", "#ef4444", "#991b1b"],
                 title=f"PRR Heatmap — Top {top_n} Reactions",
-                labels={"color": "PRR"},
-                aspect="auto"
+                labels=dict(x="Drug", y="Adverse Reaction", color="PRR Score"),
+                aspect="auto",
+                text_auto=".1f"
+            )
+            fig.update_traces(
+                hovertemplate="<b>Drug:</b> %{x}<br><b>Reaction:</b> %{y}<br><b>PRR:</b> %{z:.2f}<extra></extra>"
+            )
+            fig.update_xaxes(side="top", tickangle=-45)
+            fig.update_layout(
+                plot_bgcolor="white",
+                margin=dict(t=100)
             )
             st.plotly_chart(fig, use_container_width=True)
             
@@ -238,6 +247,61 @@ with tab3:
     col3.metric("AE Reviews", f"{review_count:,}")
     col4.metric("Reviews Processed", f"{processed_count:,}")
     
+    # Latency breakdown from pipeline_results
+    if processed_count > 0:
+        st.subheader("Node Latency Distribution")
+        latency_df = get_conn().execute("""
+            SELECT 
+                AVG(extract_latency_ms)      as avg_extract,
+                AVG(map_terms_latency_ms)    as avg_map_terms,
+                AVG(signal_check_latency_ms) as avg_signal_check,
+                MAX(extract_latency_ms)      as max_extract,
+                MAX(map_terms_latency_ms)    as max_map_terms,
+                MAX(signal_check_latency_ms) as max_signal_check
+            FROM pipeline_results
+            WHERE extract_latency_ms IS NOT NULL
+        """).df()
+        
+        nodes    = ["extract", "map_terms", "signal_check"]
+        avg_vals = [
+            latency_df["avg_extract"].iloc[0],
+            latency_df["avg_map_terms"].iloc[0],
+            latency_df["avg_signal_check"].iloc[0]
+        ]
+        max_vals = [
+            latency_df["max_extract"].iloc[0],
+            latency_df["max_map_terms"].iloc[0],
+            latency_df["max_signal_check"].iloc[0]
+        ]
+        
+        import plotly.graph_objects as go
+        fig = go.Figure(data=[
+            go.Bar(name="Avg (ms)", x=nodes, y=avg_vals, marker_color="#2196F3"),
+            go.Bar(name="Max (ms)", x=nodes, y=max_vals, marker_color="#F44336"),
+        ])
+        fig.update_layout(
+            barmode="group",
+            title="Pipeline Node Latency (ms) — Avg vs Max",
+            yaxis_title="Latency (ms)"
+        )
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Confidence score distribution
+        st.subheader("Extraction Confidence Distribution")
+        conf_df = get_conn().execute("""
+            SELECT extraction_confidence FROM pipeline_results
+        """).df()
+        fig2 = px.histogram(
+            conf_df, x="extraction_confidence",
+            nbins=20, title="Confidence Score Distribution",
+            labels={"extraction_confidence": "Confidence Score"},
+            color_discrete_sequence=["#4CAF50"]
+        )
+        fig2.add_vline(x=0.75, line_dash="dash", 
+                       line_color="red",
+                       annotation_text="Routing threshold (0.75)")
+        st.plotly_chart(fig2, use_container_width=True)
+
     # Positive control validation
     st.subheader("Positive Control Signal Validation")
     controls = [
