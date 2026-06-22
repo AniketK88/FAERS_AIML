@@ -89,6 +89,9 @@ run-pipeline:  ## Run the LangGraph multi-agent pipeline
 run-pipeline-sample:  ## Run pipeline on 10 sample reviews (quick test)
 	$(PYTHON) -m aetse.pipeline.runner --sample 10
 
+run-batch:  ## Run pipeline on up to 100 unprocessed reviews
+	$(PYTHON) -c "from aetse.pipeline.runner import batch_run; n = batch_run(100); print(f'Processed {n} reviews')"
+
 # ---- Dashboard ----
 
 run-app:  ## Launch the Streamlit dashboard

@@ -57,6 +57,74 @@ def run_pipeline(
     return result
 
 
+def batch_run(limit: int = 100) -> int:
+    """
+    Run pipeline on reviews not yet in pipeline_results.
+    Returns count of newly processed reviews.
+    Only call this from a separate terminal — not from dashboard.
+    """
+    import json
+    import duckdb
+    from aetse.config.settings import settings
+    
+    db_path = str(settings.project_root / "data" / "duckdb" / "faers.duckdb")
+    conn = duckdb.connect(db_path)
+    
+    # Get reviews not yet processed
+    reviews = conn.execute("""
+        SELECT r.review_id, r.review_text, r.drug_norm
+        FROM drug_reviews r
+        LEFT JOIN pipeline_results p ON r.review_id = p.review_id
+        WHERE r.has_ae_mention = TRUE
+          AND p.review_id IS NULL
+        ORDER BY r.review_id
+        LIMIT ?
+    """, [limit]).fetchall()
+    
+    conn.close()
+    
+    if not reviews:
+        logger.info("No unprocessed reviews found")
+        return 0
+    
+    count = 0
+    
+    for review_id, text, drug_norm in reviews:
+        try:
+            result = run_pipeline(review_id, text, source="review")
+            latency = result.get("processing_latency_ms", {})
+            
+            with duckdb.connect(db_path) as insert_conn:
+                insert_conn.execute("""
+                    INSERT OR REPLACE INTO pipeline_results VALUES (
+                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP
+                    )
+                """, [
+                    review_id,
+                    drug_norm,
+                    json.dumps(result.get("extracted_drugs") or []),
+                    json.dumps(result.get("extracted_reactions") or []),
+                    json.dumps(result.get("meddra_pts") or []),
+                    json.dumps(result.get("mapping_scores") or []),
+                    json.dumps(result.get("prr_signals") or []),
+                    result.get("severity"),
+                    result.get("extraction_confidence"),
+                    result.get("signal_flag"),
+                    result.get("needs_human_review", False),
+                    json.dumps(result.get("agent_trace") or []),
+                    latency.get("extract"),
+                    latency.get("map_terms"),
+                    latency.get("signal_check"),
+                ])
+            count += 1
+            logger.info(f"Processed {count}/{len(reviews)}: {review_id}")
+        except Exception as e:
+            logger.error(f"Failed {review_id}: {e}")
+            continue
+    
+    return count
+
+
 def main() -> None:
     """Run a quick smoke test with a sample report."""
     logger.info("=" * 60)

@@ -105,6 +105,27 @@ def init_schema() -> None:
             )
         """)
 
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS pipeline_results (
+                review_id           VARCHAR PRIMARY KEY,
+                drug_norm           VARCHAR,
+                extracted_drugs     VARCHAR,    -- JSON array stored as string
+                extracted_reactions VARCHAR,    -- JSON array stored as string
+                meddra_pts          VARCHAR,    -- JSON array stored as string
+                mapping_scores      VARCHAR,    -- JSON array stored as string
+                prr_signals         VARCHAR,    -- JSON array stored as string
+                severity            VARCHAR,
+                extraction_confidence FLOAT,
+                signal_flag         VARCHAR,
+                needs_human_review  BOOLEAN,
+                agent_trace         VARCHAR,    -- JSON array stored as string
+                extract_latency_ms  FLOAT,
+                map_terms_latency_ms FLOAT,
+                signal_check_latency_ms FLOAT,
+                processed_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+
 
 def get_table_counts() -> dict[str, int]:
     """Return row counts for all AET-SE tables.
@@ -113,7 +134,7 @@ def get_table_counts() -> dict[str, int]:
         Dict mapping table name to row count, e.g.
         {"faers_cases": 50000, "faers_drugs": 120000, ...}
     """
-    tables = ["faers_cases", "faers_drugs", "faers_reactions", "prr_signals"]
+    tables = ["faers_cases", "faers_drugs", "faers_reactions", "prr_signals", "pipeline_results"]
     counts: dict[str, int] = {}
 
     with get_duckdb_connection(read_only=True) as conn:
