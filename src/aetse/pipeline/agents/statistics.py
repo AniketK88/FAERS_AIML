@@ -444,3 +444,162 @@ def validate_positive_controls() -> list[dict[str, Any]]:
             )
 
     return validations
+
+
+# ---------------------------------------------------------------------------
+# Signal Check Node (Day 8) — replaces signal_check_stub in graph.py
+# ---------------------------------------------------------------------------
+
+import time
+from aetse.config.settings import settings
+from aetse.schemas import PVState
+
+_DB_PATH = str(settings.project_root / "data" / "duckdb" / "faers.duckdb")
+
+
+def lookup_prr_signals(
+    drugs: list[str],
+    meddra_pts: list[str],
+    db_path: str = _DB_PATH,
+) -> list[dict]:
+    """Look up PRR signals for all (drug, meddra_pt) combinations.
+
+    Queries the prr_signals table populated on Day 3. Returns only rows
+    where is_signal=True (PRR>=2.0, chi2>=3.84, n_cases>=3).
+
+    Uses LOWER() on both sides to handle mixed-case drug names from LLM
+    and MedDRA PT names from ChromaDB.
+
+    Args:
+        drugs: Extracted drug names (LLM output, may be mixed case).
+        meddra_pts: Mapped MedDRA PTs from map_terms_node.
+        db_path: Path to DuckDB database.
+
+    Returns:
+        List of signal dicts for pairs where is_signal=True.
+    """
+    if not drugs or not meddra_pts:
+        return []
+
+    import duckdb as _duckdb
+
+    conn = _duckdb.connect(db_path, read_only=True)
+    signals: list[dict] = []
+
+    try:
+        for drug in drugs:
+            for pt in meddra_pts:
+                # Parameterized query — no f-strings (SQL injection safety)
+                result = conn.execute(
+                    """
+                    SELECT drug, reaction, prr, ror, chi2,
+                           n_cases, is_signal, masking_warning
+                    FROM prr_signals
+                    WHERE LOWER(drug)     = LOWER(?)
+                      AND LOWER(reaction) = LOWER(?)
+                    """,
+                    [drug, pt],
+                ).fetchone()
+
+                if result and result[6]:  # is_signal = True
+                    signals.append(
+                        {
+                            "drug":            result[0],
+                            "reaction":        result[1],
+                            "prr":             round(float(result[2]), 3),
+                            "ror":             round(float(result[3]), 3),
+                            "chi2":            round(float(result[4]), 3),
+                            "n_cases":         result[5],
+                            "masking_warning": result[7],
+                        }
+                    )
+    finally:
+        conn.close()
+
+    return signals
+
+
+def assign_signal_flag(signals: list[dict]) -> str:
+    """Assign overall signal_flag based on max PRR across detected signals.
+
+    Thresholds:
+        high:   PRR >= 10
+        medium: PRR >= 5
+        low:    PRR >= 2 (is_signal already pre-filtered at this threshold)
+        noise:  no signals detected
+
+    Args:
+        signals: Output of lookup_prr_signals.
+
+    Returns:
+        Signal flag string.
+    """
+    if not signals:
+        return "noise"
+    max_prr = max(s["prr"] for s in signals)
+    if max_prr >= 10:
+        return "high"
+    elif max_prr >= 5:
+        return "medium"
+    else:
+        return "low"
+
+
+def signal_check_node(state: PVState) -> dict:
+    """Signal check node for LangGraph pipeline.
+
+    Replaces signal_check_stub from Day 4. Looks up (drug, MedDRA_PT)
+    pairs against the prr_signals table (19,990 signals from Day 3).
+    Assigns a signal_flag of high/medium/low/noise based on max PRR.
+
+    Args:
+        state: Current PVState.
+
+    Returns:
+        Partial state dict with prr_signals, signal_flag, latency.
+    """
+    start = time.time()
+
+    drugs  = state.get("extracted_drugs") or []
+    meddra = state.get("meddra_pts") or []
+
+    if not drugs or not meddra:
+        logger.info(
+            f"signal_check: no drugs or meddra_pts to check "
+            f"(drugs={drugs}, meddra={meddra})"
+        )
+        return {
+            "prr_signals": [],
+            "signal_flag": "noise",
+            "agent_trace": state["agent_trace"] + [
+                "SIGNAL_CHECK:no_input,flag=noise"
+            ],
+            "processing_latency_ms": {
+                **state["processing_latency_ms"],
+                "signal_check": 0.0,
+            },
+        }
+
+    signals     = lookup_prr_signals(drugs, meddra)
+    signal_flag = assign_signal_flag(signals)
+    latency     = (time.time() - start) * 1000
+    top_prr     = max((s["prr"] for s in signals), default=0.0)
+
+    logger.info(
+        f"signal_check: {len(signals)} signals found, "
+        f"flag={signal_flag}, drugs={drugs}, pts={meddra[:3]}"
+    )
+
+    return {
+        "prr_signals": signals,
+        "signal_flag": signal_flag,
+        "agent_trace": state["agent_trace"] + [
+            f"SIGNAL_CHECK:signals={len(signals)},"
+            f"flag={signal_flag},"
+            f"top_prr={top_prr:.2f}"
+        ],
+        "processing_latency_ms": {
+            **state["processing_latency_ms"],
+            "signal_check": round(latency, 2),
+        },
+    }

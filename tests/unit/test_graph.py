@@ -19,8 +19,11 @@ from aetse.pipeline.runner import run_pipeline
 from aetse.pipeline.graph import (
     build_graph,
     extract_stub,
+    map_terms_stub,
+    signal_check_stub,
     route_by_confidence,
 )
+from aetse.pipeline.agents.statistics import signal_check_node
 from aetse.schemas import PVState
 
 
@@ -29,16 +32,19 @@ from aetse.schemas import PVState
 # ---------------------------------------------------------------------------
 
 @pytest.fixture(autouse=True)
-def _use_stub_extractor(monkeypatch):
-    """Replace extract_node with extract_stub in build_graph for all tests.
+def _use_stub_nodes(monkeypatch):
+    """Replace all real nodes with stubs for unit tests.
 
-    This ensures unit tests never call the real Ollama LLM.
-    The stub returns confidence=0.80 (above 0.75 threshold).
+    Ensures unit tests never call real Ollama LLM, ChromaDB, or DuckDB.
+    - extract_stub:      conf=0.80, drugs=['ibuprofen'], reactions=['headache']
+    - map_terms_stub:    meddra_pts=['Headache'], mapping_scores=[0.92]
+    - signal_check_stub: signal_flag='low', prr_signals=[...stub data]
     """
     from aetse.pipeline import graph as graph_module
-    from aetse.pipeline.agents import extraction as extraction_module
 
     monkeypatch.setattr(graph_module, "extract_node", extract_stub)
+    monkeypatch.setattr(graph_module, "map_terms_node", map_terms_stub)
+    monkeypatch.setattr(graph_module, "signal_check_node", signal_check_stub)
 
 
 def _make_low_confidence_stub():

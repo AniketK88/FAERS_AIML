@@ -18,6 +18,8 @@ Day 6: extract_node replaces extract_stub (real Ollama LLM calls).
        extract_stub preserved for unit test compatibility.
 Day 7: map_terms_node replaces map_terms_stub (ChromaDB + bge-small-en-v1.5).
        Signal 3 (RxNorm) now active in extract_node — max conf rises to 1.0.
+Day 8: signal_check_node replaces signal_check_stub (PRR lookup from Day 3).
+       All 4 real nodes now wired. validate_stub intentionally remains a stub.
 """
 
 from __future__ import annotations
@@ -30,6 +32,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from aetse.schemas import PVState
 from aetse.pipeline.agents.extraction import extract_node
 from aetse.pipeline.agents.meddra_mapper import map_terms_node
+from aetse.pipeline.agents.statistics import signal_check_node
 from aetse.utils.logging import logger
 
 
@@ -189,7 +192,7 @@ def build_graph():
     builder.add_node("extract", extract_node)
     builder.add_node("validate", validate_stub)
     builder.add_node("map_terms", map_terms_node)
-    builder.add_node("signal_check", signal_check_stub)
+    builder.add_node("signal_check", signal_check_node)
     builder.add_node("flag_human", flag_human_stub)
 
     # Set entry point
