@@ -4,7 +4,13 @@ import pandas as pd
 import plotly.express as px
 import json
 
-DB_PATH = "data/duckdb/faers.duckdb"
+import os
+
+# Fallback to the lightweight DB on Streamlit Cloud if the full DB isn't present
+if os.path.exists("data/duckdb/faers.duckdb"):
+    DB_PATH = "data/duckdb/faers.duckdb"
+else:
+    DB_PATH = "data/duckdb/dashboard.duckdb"
 
 st.set_page_config(
     page_title="AET-SE Dashboard",

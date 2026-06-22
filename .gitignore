@@ -229,6 +229,7 @@ data/processed/
 
 # DuckDB database files
 data/duckdb/
+!data/duckdb/dashboard.duckdb
 
 # ChromaDB persistent vector store
 data/chroma_db/
