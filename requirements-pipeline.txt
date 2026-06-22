@@ -1,0 +1,63 @@
+# =============================================================================
+# AET-SE: Adverse Event Triage & Signal Detection Engine
+# Python 3.12+ | Pinned Dependencies
+# =============================================================================
+
+# --- LangGraph / LangChain Core ---
+langgraph==0.4.1
+langchain-core==0.3.63
+langchain-ollama==0.3.3
+
+# --- LLM Runtime ---
+ollama==0.5.1
+
+# --- Embeddings & Vector Store ---
+sentence-transformers==4.1.0
+chromadb==1.0.10
+# torch: install locally only — not needed on Streamlit Cloud (dashboard is read-only DuckDB)
+# Local install: pip install torch --index-url https://download.pytorch.org/whl/cpu
+
+# --- NLP / NER Baseline ---
+spacy==3.8.7
+
+# --- Database ---
+duckdb==1.3.0
+
+# --- Data Processing ---
+pandas==2.2.3
+polars==1.30.0          # used for large CSV initial loads (memory-efficient)
+pyarrow==20.0.0
+
+# --- Drug Name Normalization ---
+rapidfuzz==3.13.0
+
+# --- Configuration ---
+pydantic==2.11.3
+pydantic-settings==2.9.1
+python-dotenv==1.1.0
+
+# --- Streamlit Dashboard ---
+streamlit==1.45.1
+plotly==6.1.2
+
+# --- Logging ---
+loguru==0.7.3
+
+# --- HTTP / API ---
+httpx==0.28.1
+aiofiles==24.1.0
+
+# --- Hashing / Caching ---
+xxhash==3.5.0           # faster than md5 for cache keys
+
+# --- Testing ---
+pytest==8.4.0
+pytest-asyncio==1.0.0
+pytest-cov==6.2.1
+
+# --- Code Quality ---
+ruff==0.11.12
+
+# --- Utilities ---
+tqdm==4.67.1
+tenacity==9.1.2         # retry with exponential backoff for Ollama calls
