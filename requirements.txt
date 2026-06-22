@@ -14,7 +14,8 @@ ollama==0.5.1
 # --- Embeddings & Vector Store ---
 sentence-transformers==4.1.0
 chromadb==1.0.10
-torch==2.7.1            # CPU-only install recommended: pip install torch --index-url https://download.pytorch.org/whl/cpu
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.7.1
 
 # --- NLP / NER Baseline ---
 spacy==3.8.7
