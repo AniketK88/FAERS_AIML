@@ -14,7 +14,8 @@ ollama==0.5.1
 # --- Embeddings & Vector Store ---
 sentence-transformers==4.1.0
 chromadb==1.0.10
-torch==2.2.2+cpu -f https://download.pytorch.org/whl/torch_stable.html
+# torch: install locally only — not needed on Streamlit Cloud (dashboard is read-only DuckDB)
+# Local install: pip install torch --index-url https://download.pytorch.org/whl/cpu
 
 # --- NLP / NER Baseline ---
 spacy==3.8.7
